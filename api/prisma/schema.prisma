@@ -1,6 +1,5 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
@@ -13,10 +12,176 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  OWNER
+  ADMIN
+  USER
+  VIEWER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum TransactionType {
+  ADDITION
+  SUBTRACTION
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  INITIAL
+}
+
+// USERS OF THE APP AND THEIR RESPECTIVE PERMISSIONS
+model User {
+  id             String        @id @default(uuid())
+  email          String        @unique
+  password       String // Hashed PW
+  name           String // Viewable name in the portal - can be different to uuid account name
+  role           Role
+  organisation   Organisation? @relation(fields: [organisationId], references: [id])
+  organisationId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  stockAudits    StockAudit[] // Track who made stock changes
+  invitations    Invitation[] // Invitations received
+  sentInvites    Invitation[]  @relation("Sender")
+}
+
+// TOP LEVEL ORGANISATION - USERS, CATALOGUES, AND SITES BELONG TO AN ORGANISATION
+model Organisation {
+  id             String          @id @default(uuid())
+  name           String
+  users          User[]
+  sites          Site[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  catalogueItems CatalogueItem[]
+  subCatalogues  SubCatalogue[]
+  invitations    Invitation[]
+}
+
+// INVITATIONS TO JOIN ORGANISATIONS
+model Invitation {
+  id             String           @id @default(uuid())
+  organisation   Organisation     @relation(fields: [organisationId], references: [id])
+  organisationId String
+  invitee        User             @relation(fields: [inviteeId], references: [id])
+  inviteeId      String
+  inviter        User             @relation("Sender", fields: [inviterId], references: [id])
+  inviterId      String
+  role           Role
+  status         InvitationStatus @default(PENDING)
+  email          String // In case user isn't registered yet
+  createdAt      DateTime         @default(now())
+  expiresAt      DateTime
+}
+
+// A COLLECTION OF ALL ITEMS ON OFFER - THESE FORM THE DEFAULT MASTER CATALOGUE
+model CatalogueItem {
+  id               String             @id @default(uuid())
+  organisation     Organisation       @relation(fields: [organisationId], references: [id])
+  organisationId   String
+  name             String
+  description      String
+  SKU              String
+  category         String
+  defaultThreshold Int                @default(0) // Default minimum stock threshold
+  siteStock        SiteStock[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  subCatalogueItem SubCatalogueItem[]
+}
+
+// A SUB GROUP OF THE MASTER CATALOGUE FOR SITES THAT HAVE LIMITED STOCK OPTIONS
+model SubCatalogue {
+  id               String             @id @default(uuid())
+  organisation     Organisation       @relation(fields: [organisationId], references: [id])
+  organisationId   String
+  name             String
+  description      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  sites            Site[] // Sites using this subcatalogue
+  subCatalogueItem SubCatalogueItem[]
+}
+
+model SubCatalogueItem {
+  subCatalogue    SubCatalogue  @relation(fields: [subCatalogueId], references: [id], onDelete: Cascade)
+  subCatalogueId  String
+  catalogueItem   CatalogueItem @relation(fields: [catalogueItemId], references: [id], onDelete: Cascade)
+  catalogueItemId String
+  createdAt       DateTime      @default(now())
+
+  @@id([subCatalogueId, catalogueItemId])
+}
+
+// A SITE THAT RECEIVES STOCK. THIS COULD BE A WAREHOUSE, A STORE, A MOBILE VAN OR ANY OTHER STOCK LOCATION
 model Site {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String          @id @default(uuid())
+  name              String
+  description       String?
+  organisation      Organisation?   @relation(fields: [organisationId], references: [id])
+  organisationId    String?
+  siteStock         SiteStock[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  // Connection to either master catalog (null) or subcatalog
+  subCatalogue      SubCatalogue?   @relation(fields: [subCatalogueId], references: [id])
+  subCatalogueId    String?
+  stockTransfers    StockTransfer[] @relation("SourceSite")
+  receivedTransfers StockTransfer[] @relation("DestinationSite")
+}
+
+// THE ITEMS OF STOCK ASSIGNED TO A SITE - CAN BE IN PLACE OR PENDING (AWAITING DELIVERY)
+model SiteStock {
+  id                   String        @id @default(uuid())
+  catalogueItem        CatalogueItem @relation(fields: [catalogueItemId], references: [id])
+  catalogueItemId      String
+  site                 Site          @relation(fields: [siteId], references: [id])
+  siteId               String
+  quantityInStock      Int           @default(0)
+  quantityPending      Int           @default(0)
+  minimumThreshold     Int? // Overrides default if set
+  expectedDeliveryDate DateTime?
+  lastUpdated          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  stockAudits          StockAudit[]
+
+  @@unique([catalogueItemId, siteId])
+}
+
+// STOCK AUDIT TRAIL - TRACKS ALL CHANGES TO STOCK LEVELS
+model StockAudit {
+  id               String          @id @default(uuid())
+  siteStock        SiteStock       @relation(fields: [siteStockId], references: [id])
+  siteStockId      String
+  user             User            @relation(fields: [userId], references: [id])
+  userId           String
+  previousQuantity Int
+  newQuantity      Int
+  transactionType  TransactionType
+  notes            String?
+  createdAt        DateTime        @default(now())
+  transferId       String? // Reference to a transfer if applicable
+}
+
+// STOCK TRANSFERS BETWEEN SITES
+model StockTransfer {
+  id                String    @id @default(uuid())
+  sourceSite        Site      @relation("SourceSite", fields: [sourceSiteId], references: [id])
+  sourceSiteId      String
+  destinationSite   Site      @relation("DestinationSite", fields: [destinationSiteId], references: [id])
+  destinationSiteId String
+  catalogueItemId   String
+  quantity          Int
+  requestedAt       DateTime  @default(now())
+  approvedAt        DateTime?
+  completedAt       DateTime?
+  status            String    @default("PENDING") // PENDING, APPROVED, IN_TRANSIT, COMPLETED, CANCELED
+  notes             String?
 }
