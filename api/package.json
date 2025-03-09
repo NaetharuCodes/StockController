@@ -2,7 +2,10 @@
   "name": "api",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",
@@ -11,7 +14,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
+    "@types/supertest": "^6.0.2",
     "prisma": "^6.4.1",
-    "tsx": "^4.7.1"
+    "supertest": "^7.0.0",
+    "tsx": "^4.7.1",
+    "vitest": "^3.0.8"
   }
 }
