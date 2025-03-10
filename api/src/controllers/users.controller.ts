@@ -22,12 +22,38 @@ export const createUser = async (c: Context) => {
 };
 
 export const getAllUsers = async (c: Context) => {
-  console.log("getting users");
-
   try {
-    const users = await prisma.user.findMany();
+    const name = c.req.query("name");
+    const email = c.req.query("email");
+
+    const where: any = {};
+    if (name) where.name = name;
+    if (email) where.email = email;
+
+    const users = await prisma.user.findMany({
+      where,
+    });
 
     return c.json({ message: "Users found", users }, 200);
+  } catch (error) {
+    console.error("Error getting user", error);
+    return c.json({ error: "Failed to get user" }, 400);
+  }
+};
+
+export const getUser = async (c: Context) => {
+  try {
+    const id = c.req.param("id");
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    return c.json({ message: "User found", user }, 200);
   } catch (error) {
     console.error("Error getting user", error);
     return c.json({ error: "Failed to get user" }, 400);
