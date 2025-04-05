@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import prisma from "../services/prisma.js";
+import { Role } from "@prisma/client";
 
 export const createUser = async (c: Context) => {
   try {
@@ -10,7 +11,7 @@ export const createUser = async (c: Context) => {
         name: body.name,
         email: body.email,
         password: body.password,
-        role: body.role,
+        role: body.role as Role,
       },
     });
 
