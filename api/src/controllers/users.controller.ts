@@ -60,3 +60,22 @@ export const getUser = async (c: Context) => {
     return c.json({ error: "Failed to get user" }, 400);
   }
 };
+
+export const updateUser = async (c: Context) => {
+  try {
+    const userId = c.req.param("id");
+    const body = await c.req.json();
+
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: body,
+    });
+
+    return c.json({ user: updatedUser });
+  } catch (error) {
+    console.error("Error updating the user", error);
+    return c.json({ error: "Failed to update user" });
+  }
+};

@@ -123,93 +123,69 @@ describe("getAllUsers", () => {
     );
   });
 
-  describe("getAllUsers", () => {
-    it("should return all users", async () => {
-      const users = [
-        {
-          id: "001",
-          name: "user 01",
-          email: "email-1@gmail.com",
-          password: "password",
-          organisationId: "ABC",
-          role: "USER" as Role,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          id: "002",
-          name: "user 02",
-          email: "email-2@gmail.com",
-          password: "password",
-          organisationId: "ABC",
-          role: "USER" as Role,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ];
-
-      mockContext.req.query = vi.fn().mockReturnValue(null);
-
-      prisma.user.findMany.mockResolvedValue(users as any);
-
-      await getAllUsers(mockContext);
-
-      expect(prisma.user.findMany).toHaveBeenCalledOnce();
-      expect(mockContext.json).toHaveBeenCalledWith(
-        {
-          message: "Users found",
-          users: users,
-        },
-        200
-      );
+  it("should handle generic prisma errors", async () => {
+    const genericError = new Error("Prisma Error");
+    mockContext.req.json.mockImplementation(() => {
+      throw genericError;
     });
 
-    it("should handle generic prisma errors", async () => {
-      const genericError = new Error("Prisma Error");
-      mockContext.req.json.mockImplementation(() => {
-        throw genericError;
-      });
+    await getAllUsers(mockContext);
 
-      await getAllUsers(mockContext);
+    expect(mockContext.json).toHaveBeenCalledWith(
+      {
+        error: "Failed to get user",
+      },
+      400
+    );
+  });
+});
 
-      expect(mockContext.json).toHaveBeenCalledWith(
-        {
-          error: "Failed to get user",
-        },
-        400
-      );
+describe("getUser", () => {
+  it("should return a user", async () => {
+    const userData = {
+      name: "test user",
+      email: "test@email.com",
+      password: "password123",
+      role: "USER" as Role,
+    };
+
+    mockContext.req.param = vi.fn().mockReturnValue("10");
+    prisma.user.findUnique.mockResolvedValue(userData as any);
+
+    await getUser(mockContext);
+
+    expect(prisma.user.findUnique).toHaveBeenCalledOnce();
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: {
+        id: "10",
+      },
     });
+    expect(mockContext.json).toHaveBeenCalledWith(
+      {
+        message: "User found",
+        user: userData,
+      },
+      200
+    );
   });
 
-  describe("getUser", () => {
-    it("should return a user", async () => {
-      const userData = {
-        name: "test user",
-        email: "test@email.com",
-        password: "password123",
-        role: "USER" as Role,
-      };
-
-      mockContext.req.param = vi.fn().mockReturnValue("10");
-      prisma.user.findUnique.mockResolvedValue(userData as any);
-
-      await getUser(mockContext);
-
-      expect(prisma.user.findUnique).toHaveBeenCalledOnce();
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: {
-          id: "10",
-        },
-      });
-      expect(mockContext.json).toHaveBeenCalledWith(
-        {
-          message: "User found",
-          user: userData,
-        },
-        200
-      );
+  it("should handle generic prisma errors", async () => {
+    const genericError = new Error("Prisma Error");
+    mockContext.req.json.mockImplementation(() => {
+      throw genericError;
     });
 
-    it("should handle generic prisma errors", async () => {});
+    await getUser(mockContext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      {
+        error: "Failed to get user",
+      },
+      400
+    );
   });
+});
+
+describe("updateUser", () => {
+  it("should update a user record with data provided", () => {});
 });
